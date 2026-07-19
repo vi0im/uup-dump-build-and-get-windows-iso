@@ -44,7 +44,7 @@ on:
         description: "Windows edition to build"
         type: choice
         options: [Pro, Home, Multi]
-        default: Pro
+        default: Multi
         required: true
       language:
         description: "Language"
@@ -88,7 +88,7 @@ on:
           - Ukrainian (Ukraine)
           - Chinese (Simplified, China)
           - Chinese (Traditional, Taiwan)
-        default: English (United States)
+        default: Chinese (Simplified, China)
         required: true
       revision:
         description: "Revision number (optional)"
@@ -98,7 +98,7 @@ on:
         description: "Use ESD compression"
         type: boolean
         required: true
-        default: false
+        default: true
       netfx3:
         description: "Add .NET Framework 3.5"
         type: boolean
