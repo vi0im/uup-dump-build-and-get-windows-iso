@@ -10,7 +10,8 @@ param(
   [switch]$esd,
   [switch]$drivers,
   [switch]$netfx3,
-  [string]$revision
+  [string]$revision,
+  [string]$vAutoEditions = 'ProfessionalWorkstation,ProfessionalEducation,Education,Enterprise,ServerRdsh,IoTEnterprise'
 )
 
 Set-StrictMode -Version Latest
@@ -320,6 +321,33 @@ function Patch-Aria2-Flags {
   [System.IO.File]::WriteAllBytes($CmdPath, $newBytes)
 }
 
+function Set-ConvertConfigEntry {
+  param(
+    [string[]]$ConfigLines,
+    [string]$Name,
+    [string]$Value
+  )
+
+  $pattern = '^(?i)' + [regex]::Escape($Name) + '\s*='
+  $updatedLines = @()
+  $found = $false
+
+  foreach ($line in $ConfigLines) {
+    if ($line -match $pattern) {
+      $updatedLines += "$Name=$Value"
+      $found = $true
+    } else {
+      $updatedLines += $line
+    }
+  }
+
+  if (-not $found) {
+    $updatedLines += "$Name=$Value"
+  }
+
+  return $updatedLines
+}
+
 function Get-WindowsIso($name, $destinationDirectory) {
   $iso = Get-UupDumpIso $name $TARGETS.$name
   if (-not $iso) { throw "Can't find UUP for $name ($($TARGETS.$name.search)), lang=$lang." }
@@ -358,26 +386,32 @@ function Get-WindowsIso($name, $destinationDirectory) {
   Invoke-WebRequest -Method Post -Uri $iso.downloadPackageUrl -Body $downloadPackageBody -OutFile "$buildDirectory.zip" | Out-Null
   Expand-Archive "$buildDirectory.zip" $buildDirectory
 
-  $convertConfig = (Get-Content $buildDirectory/ConvertConfig.ini) `
-    -replace '^(AutoExit\s*)=.*','$1=1' `
-    -replace '^(ResetBase\s*)=.*','$1=1' `
-    -replace '^(Cleanup\s*)=.*','$1=1'
+  $convertConfig = @(Get-Content $buildDirectory/ConvertConfig.ini)
+
+  $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'AutoExit' -Value '1'
+  $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'ResetBase' -Value '1'
+  $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'Cleanup' -Value '1'
 
   $tag = ""
-  if ($esd) { $convertConfig = $convertConfig -replace '^(wim2esd\s*)=.*', '$1=1'; $tag += ".E" }
+  if ($esd) {
+    $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'wim2esd' -Value '1'
+    $tag += ".E"
+  }
   if ($drivers -and $arch -ne "arm64") {
     $convertConfig = $convertConfig -replace '^(AddDrivers\s*)=.*', '$1=1'
     $tag += ".D"
     Write-CleanLine "Copy Dell drivers to $buildDirectory directory"
     Copy-Item -Path Drivers -Destination $buildDirectory/Drivers -Recurse
   }
-  if ($netfx3) { $convertConfig = $convertConfig -replace '^(NetFx3\s*)=.*', '$1=1'; $tag += ".N" }
-  if ($hasVirtualMember) {
-    $convertConfig = $convertConfig `
-      -replace '^(StartVirtual\s*)=.*','$1=1' `
-      -replace '^(vDeleteSource\s*)=.*','$1=1' `
-      -replace '^(vAutoEditions\s*)=.*',"`$1=$($iso.virtualEdition)"
+  if ($netfx3) {
+    $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'NetFx3' -Value '1'
+    $tag += ".N"
   }
+  if ($hasVirtualMember) {
+    $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'vDeleteSource' -Value '1'
+  }
+  $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'StartVirtual' -Value '1'
+  $convertConfig = Set-ConvertConfigEntry -ConfigLines $convertConfig -Name 'vAutoEditions' -Value $vAutoEditions
   Set-Content -Encoding ascii -Path $buildDirectory/ConvertConfig.ini -Value $convertConfig
 
   Write-CleanLine "Creating the $title iso file inside the $buildDirectory directory"
