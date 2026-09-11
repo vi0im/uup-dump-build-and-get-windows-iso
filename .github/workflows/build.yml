@@ -36,6 +36,7 @@ on:
           - Windows 11 25H2
           - Windows 11 25H2 BETA
           - Windows 11 26H1
+          - Windows 11 26H2 BETA
           - Windows DEV
           - Windows CANARY
         default: Windows 11 25H2
@@ -110,12 +111,17 @@ on:
         required: true
         default: false
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ fromJSON('{"x64":"windows-2025","arm64":"windows-11-arm"}')[inputs.architecture] }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Map inputs
         id: map
@@ -170,6 +176,7 @@ jobs:
             'Windows 11 25H2'      = 'windows-11new'
             'Windows 11 25H2 BETA' = 'windows-11dev'
             'Windows 11 26H1'      = 'windows-1126h1'
+            'Windows 11 26H2 BETA' = 'windows-1126h2'
             'Windows DEV'          = 'windows-dev'
             'Windows CANARY'       = 'windows-canary'
           }
@@ -209,7 +216,7 @@ jobs:
 
       - name: Upload ISO artifact
         id: upload_iso_artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: ${{ env.ISO_NAME }}
           path: ${{ inputs.architecture == 'arm64' && 'c:/output/*.ISO' || 'd:/output/*.ISO' }}
@@ -314,7 +321,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v2.6.1
+        uses: softprops/action-gh-release@v3.0.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
